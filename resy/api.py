@@ -15,30 +15,30 @@ class ResyWrapper(BaseWrapper):
         self.headers = {'Authorization': f'ResyAPI api_key="{RESY_API_KEY}"',
                         'Content-Type': 'application/x-www-form-urlencoded'}
         
-    def _get_auth_token(self, email:str, password:str) -> str:
+        # The email and password ofr an account are name mangled attributes
+        # so they will not be accessible late and avoid any inherited conflicts
+        self.__email = os.getenv('RESY_ACCOUNT_EMAIL')
+        self.__password = os.getenv('RESY_ACCOUNT_PASSWORD')
+        
+    def _get_auth_token(self) -> str:
         '''
         Get the authorization token, required to make any reservation
-        
-        Parameters
-        ----------
-        email : str
-            The email for the user for whom the reservations should be made
-        password : str
-            The password for the given account
 
         Returns
         -------
-        token : str
+        auth_token : str
             The auth token which is required to make all requests for a given user
         '''
-        body = {'email': email, 'password': password}
+        auth_token = ''
+        body = {'email': self.__email, 'password': self.__password}
         AUTH_URL = self.base_url + '/3/auth/mobile'
         resy_response = self.post(AUTH_URL, headers= self.headers, data=json.dumps(body))
         response = resy_response.json()
         if 'token' in resy_response:
-            return resy_response['token']
-        else:
-            return ''
+            auth_token = response['token']
+        assert len(auth_token) > 0, ('No auth token was generated with the provided email and password.'
+                                     'Please check that they are correct and stored in the environment variables.')
+        return auth_token
         
     def find_table(self, reservation_date:dt.datetime,  num_people:int, venue_id:int) -> List[str]:
         '''
@@ -102,8 +102,8 @@ class ResyWrapper(BaseWrapper):
             'X-Resy-Auth-Token': auth_token,
             'Content-Type': 'multipart/form-data'
         }
-        booking_details = self.post(RESERVATION_URL, headers=new_header, data={'book_token': book_token})
-        if booking_details.status_code == 200:
+        booking_details = self.post(BOOK_URL, headers=new_header, data={'book_token': book_token})
+        if booking_details.ok:
             return True
         else:
             return False
